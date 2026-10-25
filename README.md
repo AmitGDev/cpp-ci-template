@@ -154,6 +154,8 @@ Clean and build Release:
 ./build.sh Release --clean
 ```
 
+The build script also prepares the compilation database for clangd and clang-tidy. If repository-specific compile-command post-processing is required, the project-specific processing is applied; otherwise the generated database is used unchanged.
+
 You can also invoke the same CMake presets that are used by CI directly. This does not perform any additional synchronization performed by `build.sh`:
 
 ```
