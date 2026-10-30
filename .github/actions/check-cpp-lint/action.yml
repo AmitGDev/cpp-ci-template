@@ -21,9 +21,19 @@ runs:
           exit 1
         fi
 
+        # Both the file selector and the header filter are unanchored regex
+        # searches, so a bare 'src[\\/]' also matches dependencies fetched
+        # into the build tree (e.g. '_deps\spdlog-src\include'). Anchoring to
+        # the checkout root keeps this shared action generic across repos
+        # while only ever selecting the repo's own src/ tree.
+        root="$(cygpath -m "${GITHUB_WORKSPACE}" 2>/dev/null || printf '%s' "${GITHUB_WORKSPACE}")"
+        root_re="$(printf '%s' "${root}" \
+          | sed -e 's/[][(){}.*+?^$|\\]/\\&/g' -e 's|/|[\\\\/]|g')"
+        own_src='^'"${root_re}"'[\\/]src[\\/]'
+
         python .github/scripts/run-clang-tidy.py \
           -p "${DB_DIR}" \
           -j "$(nproc)" \
-          -header-filter='src[\\/].*' \
-          'src[\\/].*' \
+          -header-filter="${own_src}.*" \
+          "${own_src}.*" \
           -warnings-as-errors='*'
