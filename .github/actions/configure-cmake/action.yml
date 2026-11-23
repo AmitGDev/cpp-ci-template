@@ -60,6 +60,7 @@ runs:
       run: |
         import json
         import os
+        import re
         import shutil
         import subprocess
         import sys
@@ -142,6 +143,38 @@ runs:
                 f"Post-processed compilation database must contain "
                 f"a JSON array: {output_db}"
             )
+
+        # TEMPORARY: CMake 4.5.0 emits -std:c++23 for MSVC C++23 targets
+        # (CMake 4.4.0 emits -std:c++latest for them). clang-tidy
+        # falls back to an old language mode when given -std:c++23. The
+        # analysis copy gets -std:c++latest, which worked before; the real
+        # build database is not touched.
+        # Remove when clang-tidy handles -std:c++23.
+        std_re = re.compile(r"([-/])std:c\+\+23\b")
+        replacement = r"\1std:c++latest"
+        rewritten = 0
+        for entry in processed_entries:
+            if "command" in entry:
+                new_command = std_re.sub(replacement, entry["command"])
+                rewritten += new_command != entry["command"]
+                entry["command"] = new_command
+            if "arguments" in entry:
+                new_arguments = [
+                    std_re.sub(replacement, arg) for arg in entry["arguments"]
+                ]
+                rewritten += new_arguments != entry["arguments"]
+                entry["arguments"] = new_arguments
+
+        if rewritten:
+            output_db.write_text(
+                json.dumps(processed_entries, indent=2), encoding="utf-8"
+            )
+            print(
+                f"Rewrote -std:c++23 to -std:c++latest in {rewritten} of "
+                f"{len(processed_entries)} entries (clang-cl workaround)"
+            )
+        else:
+            print("No -std:c++23 switch found, nothing to rewrite")
 
         print(
             f"Post-processed compilation database entries: "
