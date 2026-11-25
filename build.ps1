@@ -84,5 +84,24 @@ if (Test-Path $postProcessScript) {
         "build/compile_commands.json"
 }
 
+# TEMPORARY: CMake 4.5.0 emits -std:c++23 for MSVC C++23 targets
+# (CMake 4.4.0 emits -std:c++latest for them). clangd falls back
+# to an old language mode when given -std:c++23. The clangd copy gets
+# -std:c++latest, which worked before; the real build database is not
+# touched.
+# Remove when clangd handles -std:c++23.
+$clangdDatabase = "build/compile_commands.json"
+$databaseText = Get-Content -LiteralPath $clangdDatabase -Raw
+$fixedText = $databaseText -replace '([-/])std:c\+\+23\b', '$1std:c++latest'
+
+if ($fixedText -ne $databaseText) {
+    Set-Content -LiteralPath $clangdDatabase -Value $fixedText `
+        -Encoding utf8NoBOM -NoNewline
+    $rewritten = ([regex]::Matches($databaseText, '([-/])std:c\+\+23\b')).Count
+    Write-Host "Rewrote -std:c++23 to -std:c++latest in $rewritten entries (clang-cl workaround)"
+} else {
+    Write-Host "No -std:c++23 switch found, nothing to rewrite"
+}
+
 Write-Host "Building project..."
 cmake --build --preset $preset
